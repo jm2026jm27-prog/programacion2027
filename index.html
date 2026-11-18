@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planificador Matemáticas 26/27</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 300ms ease-out, transform 300ms ease-out; }
+        .modal-leave-active { opacity: 0; transform: scale(0.95); transition: opacity 200ms ease-in, transform 200ms ease-in; }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .dimmed { opacity: 0.3; filter: grayscale(100%); transition: all 0.3s ease; }
+        .highlighted {
+            opacity: 1; transform: scale(1.02);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            transition: all 0.3s ease; z-index: 10;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Avisos (toasts) -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-[70] flex flex-col gap-2 max-w-sm"></div>
+
+    <header class="bg-indigo-700 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-white text-indigo-700 p-2 rounded-lg shadow-sm">
+                        <i class="fa-solid fa-calculator text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold leading-tight">Programación de Aula: Matemáticas</h1>
+                        <p class="text-indigo-200 text-sm font-medium">Curso Académico 2026/2027 • Especialista en Didáctica</p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center justify-center gap-2 text-sm">
+                    <span id="sync-badge" class="px-3 py-1 rounded-full bg-indigo-800 text-indigo-100 text-xs font-medium">
+                        <i class="fa-solid fa-database mr-1"></i> Conectando a Supabase...
+                    </span>
+                    <button id="btn-export" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition-colors" title="Descargar copia de seguridad">
+                        <i class="fa-solid fa-download mr-1"></i> Exportar
+                    </button>
+                    <button id="btn-import" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition-colors" title="Restaurar copia de seguridad">
+                        <i class="fa-solid fa-upload mr-1"></i> Importar
+                    </button>
+                    <input type="file" id="import-input" accept="application/json,.json" class="hidden">
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex flex-col gap-6">
+
+        <!-- Controles: Mes y Filtros -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 lg:p-6 flex flex-col lg:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-4 w-full lg:w-auto justify-center">
+                <button id="btn-prev-month" class="p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-label="Mes anterior">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <h2 id="current-month-display" class="text-xl font-bold text-slate-700 min-w-[200px] text-center">Septiembre 2026</h2>
+                <button id="btn-next-month" class="p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-label="Mes siguiente">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-wrap justify-center gap-2 lg:gap-3 w-full lg:w-auto">
+                <button data-filter="all" class="filter-btn active px-4 py-2 rounded-lg text-sm font-semibold transition-colors bg-slate-800 text-white shadow-sm hover:bg-slate-700">Ver Todo</button>
+                <button data-filter="fichas" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-blue-200 text-blue-700 hover:bg-blue-50"><i class="fa-solid fa-layer-group mr-1"></i> Fichas Multinivel</button>
+                <button data-filter="grupos" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-green-200 text-green-700 hover:bg-green-50"><i class="fa-solid fa-users mr-1"></i> Trabajo Cooperativo</button>
+                <button data-filter="situaciones" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-amber-200 text-amber-700 hover:bg-amber-50"><i class="fa-solid fa-puzzle-piece mr-1"></i> Sit. Aprendizaje</button>
+                <button data-filter="informatica" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-purple-200 text-purple-700 hover:bg-purple-50"><i class="fa-solid fa-laptop-code mr-1"></i> P. Computacional</button>
+                <button data-filter="otras" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-calendar-day mr-1"></i> Otras Actividades</button>
+            </div>
+        </div>
+
+        <!-- Calendario -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="grid grid-cols-5 border-b border-slate-200 bg-slate-50 text-center text-xs sm:text-sm font-semibold text-slate-500 py-3 uppercase tracking-wider">
+                <div class="text-blue-600">Lunes</div>
+                <div class="text-slate-600">Martes</div>
+                <div class="text-green-600">Miércoles</div>
+                <div class="text-amber-600">Jueves</div>
+                <div class="text-purple-600">Viernes</div>
+            </div>
+            <div id="calendar-grid" class="grid grid-cols-5 auto-rows-fr bg-slate-200 gap-px"></div>
+        </div>
+    </main>
+
+    <!-- Modal de Detalles de Sesión -->
+    <div id="session-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity" aria-modal="true">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden relative">
+
+            <div id="modal-header" class="px-6 py-4 border-b flex justify-between items-center text-white">
+                <div class="flex flex-col">
+                    <span id="modal-date-display" class="text-sm font-medium opacity-90 uppercase tracking-wide"></span>
+                    <h3 id="modal-title" class="text-2xl font-bold flex items-center gap-2">
+                        <i id="modal-icon" class="fa-solid"></i>
+                        <span id="modal-title-text"></span>
+                    </h3>
+                </div>
+                <button id="btn-close-modal" class="text-white hover:text-slate-200 transition-colors bg-black/10 hover:bg-black/20 p-2 rounded-full focus:outline-none">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto flex-grow bg-slate-50 no-scrollbar">
+                <div id="modal-breakdown-section" class="mb-8">
+                    <h4 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Distribución de los 60 minutos</h4>
+                    <div id="modal-time-breakdown" class="space-y-4"></div>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                    <h4 class="text-lg font-bold text-slate-800 mb-3 flex justify-between items-center">
+                        <span>Planificación Específica del Día</span>
+                        <span id="save-status" class="text-sm font-normal hidden transition-opacity"></span>
+                    </h4>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label id="label-topic" for="topic-input" class="block text-sm font-medium text-slate-700 mb-1">Unidad Didáctica / Tema a Tratar</label>
+                            <input type="text" id="topic-input" placeholder="Ej. UD 1: Números naturales y divisibilidad..." class="w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border p-2 bg-slate-50">
+                        </div>
+
+                        <div>
+                            <label id="label-notes" for="notes-input" class="block text-sm font-medium text-slate-700 mb-1">Actividades, Recursos y Adaptaciones Curriculares</label>
+                            <textarea id="notes-input" rows="4" placeholder="Escribe aquí las pautas pedagógicas concretas, recursos necesarios o medidas de atención a la diversidad para esta sesión..." class="w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border p-2 bg-slate-50 resize-y"></textarea>
+                        </div>
+
+                        <!-- Currículo -->
+                        <div id="section-curriculo" class="border-t border-slate-200 pt-4 mt-2">
+                            <h5 class="text-sm font-bold text-slate-800 mb-1"><i class="fa-solid fa-scale-balanced mr-1"></i> Currículo: Competencias, Criterios y Saberes</h5>
+                            <p class="text-xs text-slate-500 mb-3">Matemáticas · Tercer ciclo de Primaria · Andalucía (Orden de 30 de mayo de 2023). Marca las competencias específicas y los criterios de evaluación.</p>
+                            <div id="curriculum-picker" class="space-y-2"></div>
+                            <div class="mt-4">
+                                <h6 class="text-xs font-bold uppercase tracking-wide text-slate-600 mb-2"><i class="fa-solid fa-book-open mr-1"></i> Saberes básicos asociados</h6>
+                                <div id="saberes-panel" class="space-y-3"></div>
+                            </div>
+                        </div>
+
+                        <!-- DUA -->
+                        <div id="section-dua" class="border-t border-slate-200 pt-4 mt-2">
+                            <h5 class="text-sm font-bold text-slate-800 mb-1"><i class="fa-solid fa-universal-access mr-1"></i> Aplicación del DUA</h5>
+                            <p class="text-xs text-slate-500 mb-3">Diseño Universal para el Aprendizaje (pautas CAST): implicación, representación y acción/expresión.</p>
+                            <div id="dua-picker" class="space-y-2"></div>
+                            <label for="dua-notes" class="block text-xs font-medium text-slate-600 mt-3 mb-1">Otras medidas o apoyos específicos (opcional)</label>
+                            <textarea id="dua-notes" rows="2" placeholder="Apoyos concretos para alumnado determinado, materiales adaptados..." class="w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border p-2 text-sm bg-slate-50 resize-y"></textarea>
+                        </div>
+
+                        <!-- Evaluación -->
+                        <div id="section-eval" class="border-t border-slate-200 pt-4 mt-2">
+                            <h5 class="text-sm font-bold text-slate-800 mb-3"><i class="fa-solid fa-clipboard-check mr-1"></i> Evaluación</h5>
+                            <h6 class="text-xs font-bold uppercase tracking-wide text-slate-600 mb-2">Tipos de evaluación</h6>
+                            <div id="eval-tipos-picker" class="space-y-2 mb-4"></div>
+                            <h6 class="text-xs font-bold uppercase tracking-wide text-slate-600 mb-2">Herramientas e instrumentos</h6>
+                            <div id="eval-herr-picker" class="space-y-2"></div>
+                            <label for="eval-notes" class="block text-xs font-medium text-slate-600 mt-3 mb-1">Indicadores de logro / observaciones (opcional)</label>
+                            <textarea id="eval-notes" rows="2" placeholder="Qué observarás o recogerás en esta sesión, indicadores de logro..." class="w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border p-2 text-sm bg-slate-50 resize-y"></textarea>
+                        </div>
+
+                        <!-- Adjuntos -->
+                        <div class="border-t border-slate-200 pt-4 mt-2">
+                            <h5 class="text-sm font-bold text-slate-800 mb-3"><i class="fa-solid fa-paperclip mr-1"></i> Recursos y Materiales</h5>
+
+                            <div class="mb-4">
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Añadir Enlace Web (URL)</label>
+                                <div class="flex gap-2">
+                                    <input type="url" id="link-input" placeholder="https://..." class="flex-grow rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border p-2 text-sm bg-slate-50">
+                                    <button id="btn-add-link" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-md text-sm transition-colors focus:outline-none"><i class="fa-solid fa-plus"></i></button>
+                                </div>
+                                <ul id="links-list" class="mt-2 space-y-2"></ul>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Adjuntar Archivo (Máx 650 KB)</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="file" id="file-input" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
+                                </div>
+                                <div id="file-error" class="text-red-500 text-xs mt-1 hidden">El archivo es demasiado grande (Máx 650 KB).</div>
+                                <ul id="files-list" class="mt-2 space-y-2"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t bg-white flex justify-end">
+                <button id="btn-save-notes" class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-6 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2">
+                    <i class="fa-regular fa-floppy-disk"></i> <span id="btn-save-label">Guardar Planificación</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+        /* =====================================================================
+           CONFIGURACIÓN DE SUPABASE CON TUS CREDENCIALES
+           ===================================================================== */
+        const SUPABASE_URL = "https://dnwpmgajviqtdjhhkfha.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_3BrF5pXc_IDbo5_XwXGgTQ_mhplcmfD";
+
+        let supabase = null;
+        let isSupabaseConfigured = false;
+
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+            try {
+                supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                isSupabaseConfigured = true;
+            } catch (e) {
+                console.warn("Error al inicializar Supabase, usando almacenamiento local.", e);
+            }
+        }
+
+        const MAX_FILE_BYTES = 650 * 1024;
+        const fileCache = new Map();
+
+        /* ---------- Calendario / estado ---------- */
+        const courseMonths = [
+            { label: 'Septiembre 2026', year: 2026, month: 8 },
+            { label: 'Octubre 2026', year: 2026, month: 9 },
+            { label: 'Noviembre 2026', year: 2026, month: 10 },
+            { label: 'Diciembre 2026', year: 2026, month: 11 },
+            { label: 'Enero 2027', year: 2027, month: 0 },
+            { label: 'Febrero 2027', year: 2027, month: 1 },
+            { label: 'Marzo 2027', year: 2027, month: 2 },
+            { label: 'Abril 2027', year: 2027, month: 3 },
+            { label: 'Mayo 2027', year: 2027, month: 4 },
+            { label: 'Junio 2027', year: 2027, month: 5 }
+        ];
+
+        let currentMonthIndex = (() => {
+            const now = new Date();
+            const i = courseMonths.findIndex(m => m.year === now.getFullYear() && m.month === now.getMonth());
+            return i >= 0 ? i : 0;
+        })();
+        let activeFilter = 'all';
+        let currentEditingDate = null;
+        let originalFileIds = [];
+        let tempLinks = [];
+        let tempFiles = [];
+        let saving = false;
+        let tempCurriculo = { competencias: [], criterios: [] };
+        let tempDua = { medidas: [] };
+        let tempEval = { tipos: [], herramientas: [] };
+        let plannerData = {};
+
+        const pedagogicalStructure = {
+            1: {
+                type: 'fichas', title: 'Fichas Multinivel y Operaciones', icon: 'fa-layer-group',
+                colorClass: 'bg-blue-50 border-blue-200', headerClass: 'bg-blue-600', textColor: 'text-blue-700',
+                breakdown: [
+                    { time: '00 - 20 min', title: 'Cálculo Mental Individualizado', desc: 'Fichas organizadas en 3 niveles de desarrollo.', group: 'Individual', icon: 'fa-pen' },
+                    { time: '20 - 60 min', title: 'Operaciones Básicas y Combinadas', desc: 'Explicación guiada y práctica de algoritmos.', group: 'Gran Grupo / Individual', icon: 'fa-square-root-variable' }
+                ],
+                tips: "Pauta diversidad: Entregar las fichas pre-clasificadas según el nivel de desarrollo."
+            },
+            2: {
+                type: 'otras', title: 'Otras Actividades', icon: 'fa-calendar-day', math: false,
+                colorClass: 'bg-slate-50 border-slate-300', headerClass: 'bg-slate-600', textColor: 'text-slate-600',
+                breakdown: [],
+                tips: ''
+            },
+            3: {
+                type: 'grupos', title: 'Cálculo Oral y Trabajo Cooperativo', icon: 'fa-users',
+                colorClass: 'bg-green-50 border-green-200', headerClass: 'bg-green-600', textColor: 'text-green-700',
+                breakdown: [
+                    { time: '00 - 10 min', title: 'Cálculo Mental Oral', desc: 'Dinámica participativa rápida.', group: 'Gran Grupo', icon: 'fa-comments' },
+                    { time: '10 - 60 min', title: 'Nuevos Contenidos y Colaboración', desc: 'Trabajo práctico en pequeños grupos heterogéneos.', group: 'Pequeños Grupos', icon: 'fa-people-group' }
+                ],
+                tips: "Pauta rotación: Asignar roles cooperativos (portavoz, secretario, moderador)."
+            },
+            4: {
+                type: 'situaciones', title: 'Situaciones de Aprendizaje', icon: 'fa-puzzle-piece',
+                colorClass: 'bg-amber-50 border-amber-200', headerClass: 'bg-amber-600', textColor: 'text-amber-800',
+                breakdown: [
+                    { time: '00 - 10 min', title: 'Repaso y Agilidad Mental', desc: 'Cálculo mental en gran grupo.', group: 'Gran Grupo', icon: 'fa-bolt' },
+                    { time: '10 - 60 min', title: 'Aplicación Práctica y Contextualizada', desc: 'Resolución de problemas del mundo real.', group: 'Grupos / Parejas', icon: 'fa-lightbulb' }
+                ],
+                tips: "Ejemplo S.A.: Simulaciones de compra-venta, diseño de planos a escala."
+            },
+            5: {
+                type: 'informatica', title: 'Pensamiento Computacional', icon: 'fa-laptop-code',
+                colorClass: 'bg-purple-50 border-purple-200', headerClass: 'bg-purple-600', textColor: 'text-purple-700',
+                breakdown: [
+                    { time: '00 - 60 min', title: 'Lógica, Algoritmos e Informática', desc: 'Juegos lógicos, programación en Scratch/Code.org.', group: 'Individual / Parejas', icon: 'fa-computer' }
+                ],
+                tips: "Pauta metodológica: Plantear retos donde el error sea parte del proceso (depuración)."
+            }
+        };
+
+        const COMPETENCIAS = [
+            { n: 1, t: 'Interpretar situaciones cotidianas y representarlas matemáticamente.' },
+            { n: 2, t: 'Resolver situaciones problematizadas y validar las soluciones.' },
+            { n: 3, t: 'Formular conjeturas y plantear problemas.' },
+            { n: 4, t: 'Utilizar el pensamiento computacional.' },
+            { n: 5, t: 'Conectar ideas matemáticas con otras áreas y con la vida cotidiana.' },
+            { n: 6, t: 'Comunicar y representar ideas matemáticas.' },
+            { n: 7, t: 'Desarrollar destrezas personales y gestionar las emociones.' },
+            { n: 8, t: 'Desarrollar destrezas sociales y trabajar en equipo.' }
+        ];
+
+        const CRITERIOS = [
+            { id: '1.1', c: 1, t: 'Reformular problemas de forma verbal y gráfica.', s: ['A.3.5', 'A.3.2', 'A.2.6', 'D.2.1'] },
+            { id: '1.2', c: 1, t: 'Elaborar representaciones matemáticas para elegir estrategias.', s: ['A.3.2', 'A.3.4', 'C.2.2', 'D.2.1'] },
+            { id: '2.1', c: 2, t: 'Comparar y seleccionar estrategias de resolución.', s: ['A.3.1', 'A.3.2', 'B.1.1', 'C.4.1'] },
+            { id: '2.2', c: 2, t: 'Obtener posibles soluciones por tanteo y descomposición.', s: ['A.1.1', 'A.2.2', 'B.3.3', 'D.3.1'] },
+            { id: '2.3', c: 2, t: 'Comprobar la corrección matemática de las soluciones.', s: ['A.2.1', 'A.2.2', 'A.3.5', 'B.3.4'] },
+            { id: '3.1', c: 3, t: 'Formular conjeturas sencillas e investigar patrones.', s: ['A.3.8', 'C.3.1', 'D.1.1', 'E.2.1'] },
+            { id: '3.2', c: 3, t: 'Plantear nuevos problemas sobre situaciones cotidianas.', s: ['A.3.5', 'A.6.1', 'D.2.2', 'E.1.2'] },
+            { id: '4.1', c: 4, t: 'Modelizar situaciones cotidianas con pensamiento computacional.', s: ['C.2.2', 'D.1.1', 'D.4.1'] },
+            { id: '4.2', c: 4, t: 'Usar herramientas tecnológicas para resolver problemas.', s: ['A.3.4', 'C.1.2', 'D.4.1', 'E.1.6'] },
+            { id: '5.1', c: 5, t: 'Establecer conexiones entre elementos matemáticos.', s: ['A.2.4', 'A.4.1', 'B.3.1', 'C.3.2'] },
+            { id: '5.2', c: 5, t: 'Usar conexiones en contextos no matemáticos y medioambientales.', s: ['A.5.2', 'B.1.1', 'C.2.1', 'E.3.1'] },
+            { id: '6.1', c: 6, t: 'Interpretar y usar lenguaje matemático sencillo.', s: ['A.2.3', 'A.2.6', 'C.1.3', 'E.1.1'] },
+            { id: '6.2', c: 6, t: 'Comunicar conjeturas y procesos.', s: ['A.2.6', 'A.3.8', 'C.1.3', 'E.1.5'] },
+            { id: '7.1', c: 7, t: 'Identificar y autorregular emociones en el trabajo matemático.', s: ['A.2.8', 'F.1.1', 'F.1.2', 'F.1.3'] },
+            { id: '7.2', c: 7, t: 'Mostrar actitudes positivas y perseverantes ante el error.', s: ['A.3.6', 'F.1.2', 'F.1.4', 'F.1.5'] },
+            { id: '8.1', c: 8, t: 'Participar y colaborar con respeto en grupos.', s: ['F.2.1', 'F.2.2', 'F.2.3'] },
+            { id: '8.2', c: 8, t: 'Tomar iniciativas en el reparto de tareas en equipo.', s: ['F.2.2', 'F.2.4', 'F.2.5'] }
+        ];
+
+        const SABERES = {
+            'A.1.1': 'Conteo: estrategias según el tamaño de los números.',
+            'A.2.1': 'Cantidad: orden de magnitud y estimaciones.',
+            'A.2.2': 'Cantidad: aproximaciones y redondeos.',
+            'A.2.3': 'Lectura y representación de naturales y decimales.',
+            'A.2.4': 'Uso de fracciones y decimales según la situación.',
+            'A.2.6': 'Explicación oral del proceso seguido.',
+            'A.3.1': 'Operaciones: estrategias de cálculo mental.',
+            'A.3.2': 'Elección de operaciones simples o combinadas.',
+            'A.3.5': 'Fases de la resolución de problemas.',
+            'A.4.1': 'Relaciones: sistema de numeración base diez.',
+            'A.5.2': 'Proporcionalidad, porcentajes y escalas.',
+            'A.6.1': 'Educación financiera: consumo responsable y presupuesto.',
+            'B.1.1': 'Unidades del Sistema Métrico Decimal y tiempo.',
+            'B.3.1': 'Estimación de magnitudes y comparaciones.',
+            'C.1.2': 'Figuras 2D y 3D: propiedades y construcción.',
+            'C.2.1': 'Localización en mapas, planos y coordenadas.',
+            'D.1.1': 'Patrones y regularidades numéricas o geométricas.',
+            'D.4.1': 'Algoritmos sencillos y pensamiento computacional.',
+            'E.1.1': 'Lectura e interpretación de gráficos estadísticos.',
+            'F.1.2': 'Flexibilidad cognitiva y el error como aprendizaje.',
+            'F.2.2': 'Técnicas de trabajo cooperativo y resolución de conflictos.'
+        };
+
+        const DUA = [
+            { id: 'IMP', t: 'Múltiples formas de implicación', pautas: [
+                { t: 'Captar el interés', m: [['I1', 'Elección de actividades/niveles.'], ['I2', 'Contextos reales.']] },
+                { t: 'Esfuerzo y persistencia', m: [['I5', 'Objetivos visibles.'], ['I7', 'Trabajo cooperativo con roles.']] }
+            ] },
+            { id: 'REP', t: 'Múltiples formas de representación', pautas: [
+                { t: 'Percepción', m: [['R1', 'Formatos variados (oral, visual, manipulativo).'], ['R4', 'Materiales manipulativos.']] },
+                { t: 'Comprensión', m: [['R9', 'Activar conocimientos previos.'], ['R11', 'Modelar el procedimiento paso a paso.']] }
+            ] },
+            { id: 'ACC', t: 'Múltiples formas de acción y expresión', pautas: [
+                { t: 'Expresión', m: [['A1', 'Opciones para responder.'], ['A5', 'Herramientas digitales (GeoGebra, Scratch).']] }
+            ] }
+        ];
+
+        const EVAL_TIPOS = [{ t: 'Momentos y Enfoque', m: [['ET1', 'Inicial/Diagnóstica'], ['ET2', 'Continua y Formativa'], ['ET7', 'Competencial']] }];
+        const EVAL_HERR = [{ t: 'Instrumentos', m: [['EH1', 'Observación directa'], ['EH6', 'Revisión de cuaderno'], ['EH15', 'Rúbricas analíticas']] }];
+
+        const $ = (id) => document.getElementById(id);
+        const calendarGrid = $('calendar-grid');
+        const monthDisplay = $('current-month-display');
+        const btnPrev = $('btn-prev-month');
+        const btnNext = $('btn-next-month');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const modal = $('session-modal');
+        const linksList = $('links-list');
+        const filesList = $('files-list');
+        const fileError = $('file-error');
+        const linkInput = $('link-input');
+        const fileInput = $('file-input');
+        const saveStatus = $('save-status');
+
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const newId = () => (crypto.randomUUID ? crypto.randomUUID() : 'id' + Date.now() + Math.random().toString(16).slice(2));
+        const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+        function toast(message, type = 'info', ms = 5000) {
+            const colors = { info: 'bg-slate-800', ok: 'bg-emerald-600', warn: 'bg-amber-600', error: 'bg-red-600' };
+            const el = document.createElement('div');
+            el.className = `${colors[type] || colors.info} text-white text-sm px-4 py-3 rounded-lg shadow-lg`;
+            el.textContent = message;
+            $('toast-container').appendChild(el);
+            setTimeout(() => el.remove(), ms);
+        }
+
+        /* =====================================================================
+           CARGA Y GUARDADO DE DATOS (SUPABASE / LOCALSTORAGE)
+           ===================================================================== */
+        async function loadAll() {
+            if (isSupabaseConfigured) {
+                try {
+                    const { data: plans, error: planErr } = await supabase.from('planificaciones').select('*');
+                    if (planErr) throw planErr;
+
+                    const { data: files, error: fileErr } = await supabase.from('archivos_adjuntos').select('id, date, name, type, size');
+                    if (fileErr) throw fileErr;
+
+                    const result = {};
+                    (plans || []).forEach(p => {
+                        result[p.date] = {
+                            ...p,
+                            files: (files || []).filter(f => f.date === p.date)
+                        };
+                    });
+
+                    plannerData = result;
+                    $('sync-badge').innerHTML = '<i class="fa-solid fa-database mr-1"></i> Conectado a Supabase';
+                    return;
+                } catch (e) {
+                    console.warn("Fallo en Supabase, recurriendo a localStorage", e);
+                }
+            }
+
+            // Fallback LocalStorage
+            $('sync-badge').innerHTML = '<i class="fa-solid fa-hard-drive mr-1"></i> Modo Local';
+            const raw = localStorage.getItem('plannerData_v1');
+            plannerData = raw ? JSON.parse(raw) : {};
+        }
+
+        async function persistDay(date, day, removedIds = []) {
+            if (isSupabaseConfigured) {
+                try {
+                    const clean = {
+                        date: date,
+                        topic: day.topic || '',
+                        notes: day.notes || '',
+                        links: day.links || [],
+                        curriculo: day.curriculo || { competencias: [], criterios: [] },
+                        dua: day.dua || { medidas: [], otras: '' },
+                        evaluacion: day.evaluacion || { tipos: [], herramientas: [], notas: '' },
+                        updated_at: new Date().toISOString()
+                    };
+
+                    const { error: planError } = await supabase.from('planificaciones').upsert(clean);
+                    if (planError) throw planError;
+
+                    for (const f of (day.files || [])) {
+                        if (f.data) {
+                            const { error: fileError } = await supabase.from('archivos_adjuntos').upsert({
+                                id: f.id,
+                                date: date,
+                                name: f.name,
+                                type: f.type || '',
+                                size: f.size || 0,
+                                data: f.data
+                            });
+                            if (fileError) throw fileError;
+                            fileCache.set(f.id, f.data);
+                        }
+                    }
+
+                    if (removedIds.length > 0) {
+                        await supabase.from('archivos_adjuntos').delete().in('id', removedIds);
+                    }
+
+                    await loadAll();
+                    return 'ok';
+                } catch (e) {
+                    console.warn("Error guardando en Supabase, guardando localmente.", e);
+                }
+            }
+
+            // Fallback LocalStorage
+            plannerData[date] = day;
+            localStorage.setItem('plannerData_v1', JSON.stringify(plannerData));
+            return 'ok';
+        }
+
+        async function resolveFileData(f) {
+            if (f.data) return f.data;
+            if (fileCache.has(f.id)) return fileCache.get(f.id);
+
+            if (isSupabaseConfigured) {
+                const { data, error } = await supabase.from('archivos_adjuntos').select('data').eq('id', f.id).single();
+                if (!error && data) {
+                    fileCache.set(f.id, data.data);
+                    return data.data;
+                }
+            }
+            throw new Error('No se pudo recuperar el archivo');
+        }
+
+        /* =====================================================================
+           EXPORTAR / IMPORTAR BACKUP JSON
+           ===================================================================== */
+        async function exportBackup() {
+            try {
+                const blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), days: plannerData })], { type: 'application/json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `planificador-matematicas-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                toast('Copia de seguridad descargada.', 'ok');
+            } catch (e) {
+                toast('Error al exportar datos.', 'error');
+            }
+        }
+
+        async function importBackup(file) {
+            if (!file) return;
+            try {
+                const backup = JSON.parse(await file.text());
+                if (!backup || typeof backup.days !== 'object') throw new Error('Formato no válido');
+                const dates = Object.keys(backup.days);
+                if (!confirm(`Se van a importar ${dates.length} día(s). ¿Continuar?`)) return;
+
+                for (const date of dates) {
+                    await persistDay(date, backup.days[date]);
+                }
+                renderCalendar(currentMonthIndex);
+                toast('Importación completada con éxito.', 'ok');
+            } catch (e) {
+                toast('Error al importar: ' + e.message, 'error');
+            } finally {
+                $('import-input').value = '';
+            }
+        }
+
+        /* =====================================================================
+           CALENDARIO
+           ===================================================================== */
+        function renderCalendar(index) {
+            calendarGrid.innerHTML = '';
+            const config = courseMonths[index];
+            monthDisplay.textContent = config.label;
+
+            btnPrev.disabled = index === 0;
+            btnNext.disabled = index === courseMonths.length - 1;
+            btnPrev.classList.toggle('opacity-50', index === 0);
+            btnNext.classList.toggle('opacity-50', index === courseMonths.length - 1);
+
+            const { year, month } = config;
+            const firstDay = new Date(year, month, 1);
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const startingDay = firstDay.getDay();
+            const emptyCells = (startingDay >= 1 && startingDay <= 5) ? startingDay - 1 : 0;
+
+            for (let i = 0; i < emptyCells; i++) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'bg-slate-100 h-28 sm:h-36 p-2 border-b border-r border-slate-200/50';
+                calendarGrid.appendChild(emptyDiv);
+            }
+
+            let cellCount = emptyCells;
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayOfWeek = new Date(year, month, day).getDay();
+                if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+                cellCount++;
+
+                const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayCell = document.createElement('div');
+                dayCell.className = 'bg-white h-28 sm:h-36 p-1 sm:p-2 relative flex flex-col group transition-all border-b border-r border-slate-200';
+                dayCell.dataset.date = dateKey;
+
+                const dayNumber = document.createElement('span');
+                dayNumber.className = 'text-sm font-semibold mb-1 block w-7 h-7 flex items-center justify-center rounded-full';
+                dayNumber.textContent = day;
+
+                const savedData = plannerData[dateKey];
+                const hasContent = savedData && (savedData.topic || savedData.notes || (savedData.links && savedData.links.length > 0) || (savedData.files && savedData.files.length > 0));
+
+                {
+                    const structure = pedagogicalStructure[dayOfWeek];
+                    dayCell.dataset.type = structure.type;
+                    dayCell.classList.add(...structure.colorClass.split(' '), 'cursor-pointer', 'hover:shadow-lg', 'hover:z-10', 'hover:-translate-y-1');
+                    dayNumber.classList.add('text-slate-700', 'bg-white/70');
+
+                    const content = document.createElement('div');
+                    content.className = 'flex-grow flex flex-col gap-1 justify-center items-center text-center';
+
+                    const icon = document.createElement('i');
+                    icon.className = `fa-solid ${structure.icon} text-xl sm:text-2xl ${structure.textColor} opacity-80 group-hover:scale-110 transition-transform mb-1`;
+
+                    const label = document.createElement('span');
+                    label.className = `text-[10px] sm:text-xs font-semibold leading-tight ${structure.textColor} hidden sm:block mt-1 px-1`;
+                    label.textContent = structure.title;
+
+                    if (hasContent) {
+                        const indicators = document.createElement('div');
+                        indicators.className = 'absolute top-2 right-2 flex gap-1';
+                        if (savedData.topic || savedData.notes) indicators.innerHTML += `<div class="w-2.5 h-2.5 bg-indigo-500 rounded-full shadow-sm" title="Planificación Guardada"></div>`;
+                        if (savedData.files && savedData.files.length > 0) indicators.innerHTML += `<div class="w-2.5 h-2.5 bg-emerald-400 rounded-full shadow-sm" title="Archivos Adjuntos"></div>`;
+                        dayCell.appendChild(indicators);
+
+                        if (savedData.topic) {
+                            label.textContent = savedData.topic.substring(0, 25) + (savedData.topic.length > 25 ? '...' : '');
+                            label.className = 'text-[10px] sm:text-xs font-semibold leading-tight text-slate-800 hidden sm:block mt-1 px-1 truncate w-full text-center bg-white/60 rounded py-0.5';
+                        }
+                    }
+
+                    content.appendChild(icon);
+                    content.appendChild(label);
+                    dayCell.appendChild(dayNumber);
+                    dayCell.appendChild(content);
+                    dayCell.addEventListener('click', () => openModal(dateKey, dayOfWeek));
+                }
+
+                calendarGrid.appendChild(dayCell);
+            }
+
+            const remainingCells = (5 - (cellCount % 5)) % 5;
+            for (let i = 0; i < remainingCells; i++) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'bg-slate-100 h-28 sm:h-36 p-2 border-b border-r border-slate-200/50';
+                calendarGrid.appendChild(emptyDiv);
+            }
+            applyFilterVisuals();
+        }
+
+        function applyFilterVisuals() {
+            calendarGrid.querySelectorAll('[data-date]').forEach(cell => {
+                const type = cell.dataset.type;
+                if (!type) return;
+                if (activeFilter === 'all') {
+                    cell.classList.remove('dimmed', 'highlighted');
+                } else if (activeFilter === type) {
+                    cell.classList.remove('dimmed');
+                    cell.classList.add('highlighted');
+                } else {
+                    cell.classList.remove('highlighted');
+                    cell.classList.add('dimmed');
+                }
+            });
+        }
+
+        /* =====================================================================
+           MODAL Y GESTIÓN DE EVENTOS
+           ===================================================================== */
+        function openModal(dateString, dayOfWeek) {
+            currentEditingDate = dateString;
+            const structure = pedagogicalStructure[dayOfWeek];
+            const [y, m, d] = dateString.split('-').map(Number);
+            const formattedDate = capitalize(new Date(y, m - 1, d).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+
+            $('modal-date-display').textContent = formattedDate;
+            $('modal-title-text').textContent = structure.title;
+            $('modal-header').className = `px-6 py-4 border-b flex justify-between items-center text-white ${structure.headerClass}`;
+            $('modal-icon').className = `fa-solid ${structure.icon} text-2xl`;
+
+            // Los días sin Matemáticas ocultan las secciones propias del área
+            const isMath = structure.math !== false;
+            ['modal-breakdown-section', 'section-curriculo', 'section-dua', 'section-eval']
+                .forEach(id => $(id).classList.toggle('hidden', !isMath));
+            $('label-topic').textContent = isMath ? 'Unidad Didáctica / Tema a Tratar' : 'Actividad / Título';
+            $('label-notes').textContent = isMath ? 'Actividades, Recursos y Adaptaciones Curriculares' : 'Descripción, recursos y observaciones';
+            $('topic-input').placeholder = isMath ? 'Ej. UD 1: Números naturales y divisibilidad...' : 'Ej. Tutoría, reunión de ciclo, taller...';
+
+            const breakdownContainer = $('modal-time-breakdown');
+            breakdownContainer.innerHTML = '';
+            structure.breakdown.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'flex gap-4 p-4 rounded-lg bg-white border border-slate-200 shadow-sm items-start';
+                row.innerHTML = `
+                    <div class="bg-slate-100 text-slate-700 font-bold py-1 px-3 rounded text-sm whitespace-nowrap border border-slate-200 w-28 text-center shrink-0">${item.time}</div>
+                    <div class="flex-grow">
+                        <h5 class="font-bold text-slate-800 text-base mb-1 flex items-center gap-2"><i class="fa-solid ${item.icon} text-slate-400"></i> ${item.title}</h5>
+                        <p class="text-slate-600 text-sm mb-2 leading-relaxed">${item.desc}</p>
+                        <span class="inline-block bg-indigo-50 text-indigo-700 text-xs font-semibold px-2.5 py-0.5 rounded border border-indigo-100">Agrupamiento: ${item.group}</span>
+                    </div>`;
+                breakdownContainer.appendChild(row);
+            });
+
+            const saved = plannerData[dateString];
+            $('topic-input').value = saved?.topic || '';
+            $('notes-input').value = saved?.notes || '';
+            tempLinks = (saved?.links || []).map(l => ({ ...l }));
+            tempFiles = (saved?.files || []).map(f => ({ ...f }));
+            originalFileIds = tempFiles.map(f => f.id).filter(Boolean);
+            tempCurriculo = { competencias: [...(saved?.curriculo?.competencias || [])], criterios: [...(saved?.curriculo?.criterios || [])] };
+            tempDua = { medidas: [...(saved?.dua?.medidas || [])] };
+            tempEval = { tipos: [...(saved?.evaluacion?.tipos || [])], herramientas: [...(saved?.evaluacion?.herramientas || [])] };
+            
+            $('dua-notes').value = saved?.dua?.otras || '';
+            $('eval-notes').value = saved?.evaluacion?.notas || '';
+
+            renderCurriculum();
+            renderLinks();
+            renderFiles();
+            renderDuaEval();
+
+            saveStatus.classList.add('hidden');
+            fileError.classList.add('hidden');
+            modal.classList.remove('hidden');
+            void modal.offsetWidth;
+            modal.querySelector('div').classList.add('modal-enter-active');
+        }
+
+        function closeModal() {
+            const modalContent = modal.querySelector('div');
+            modalContent.classList.remove('modal-enter-active');
+            modalContent.classList.add('modal-leave-active');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modalContent.classList.remove('modal-leave-active');
+                currentEditingDate = null;
+            }, 200);
+        }
+
+        function renderCurriculum() {
+            $('curriculum-picker').innerHTML = COMPETENCIAS.map(comp => {
+                const on = tempCurriculo.competencias.includes(comp.n);
+                const crits = CRITERIOS.filter(c => c.c === comp.n);
+                return `
+                    <div class="rounded-lg border ${on ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200 bg-white'}">
+                        <label class="flex items-start gap-2 p-2.5 cursor-pointer">
+                            <input type="checkbox" class="mt-1 accent-indigo-600" data-cur="comp" data-id="${comp.n}" ${on ? 'checked' : ''}>
+                            <span class="text-sm"><strong>CE${comp.n}.</strong> ${esc(comp.t)}</span>
+                        </label>
+                        ${on ? `<div class="px-3 pb-3 pl-9 space-y-1.5">
+                            ${crits.map(cr => `
+                                <label class="flex items-start gap-2 cursor-pointer text-sm text-slate-700">
+                                    <input type="checkbox" class="mt-1 accent-indigo-600" data-cur="crit" data-id="${cr.id}" ${tempCurriculo.criterios.includes(cr.id) ? 'checked' : ''}>
+                                    <span><strong>${cr.id}</strong> ${esc(cr.t)}</span>
+                                </label>`).join('')}
+                        </div>` : ''}
+                    </div>`;
+            }).join('');
+            renderSaberes();
+        }
+
+        function renderSaberes() {
+            const panel = $('saberes-panel');
+            const selected = CRITERIOS.filter(c => tempCurriculo.criterios.includes(c.id));
+            if (selected.length === 0) {
+                panel.innerHTML = '<p class="text-xs text-slate-400 italic">Selecciona criterios para ver los saberes básicos.</p>';
+                return;
+            }
+            const codes = [...new Set(selected.flatMap(cr => cr.s))];
+            panel.innerHTML = `<div class="bg-white border border-slate-200 rounded-lg p-3">
+                <ul class="space-y-1.5">${codes.map(code => `<li class="text-sm text-slate-700"><span class="font-mono text-[11px] bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 mr-2">${code}</span>${esc(SABERES[code] || code)}</li>`).join('')}</ul>
+            </div>`;
+        }
+
+        function renderDuaEval() {
+            $('dua-picker').innerHTML = DUA.map(pr => `
+                <details class="rounded-lg border border-slate-200 bg-white">
+                    <summary class="cursor-pointer p-2.5 text-sm font-semibold text-slate-700">${esc(pr.t)}</summary>
+                    <div class="px-3 pb-3 space-y-1.5">
+                        ${pr.pautas.flatMap(p => p.m).map(([id, txt]) => `
+                            <label class="flex items-start gap-2 cursor-pointer text-sm text-slate-700">
+                                <input type="checkbox" class="mt-1 accent-indigo-600" data-pick="dua" data-id="${id}" ${tempDua.medidas.includes(id) ? 'checked' : ''}>
+                                <span>${esc(txt)}</span>
+                            </label>`).join('')}
+                    </div>
+                </details>`).join('');
+
+            $('eval-tipos-picker').innerHTML = EVAL_TIPOS.map(g => `
+                <div class="space-y-1.5">${g.m.map(([id, txt]) => `
+                    <label class="flex items-start gap-2 cursor-pointer text-sm text-slate-700">
+                        <input type="checkbox" class="mt-1 accent-indigo-600" data-pick="etipo" data-id="${id}" ${tempEval.tipos.includes(id) ? 'checked' : ''}>
+                        <span>${esc(txt)}</span>
+                    </label>`).join('')}</div>`).join('');
+
+            $('eval-herr-picker').innerHTML = EVAL_HERR.map(g => `
+                <div class="space-y-1.5">${g.m.map(([id, txt]) => `
+                    <label class="flex items-start gap-2 cursor-pointer text-sm text-slate-700">
+                        <input type="checkbox" class="mt-1 accent-indigo-600" data-pick="eherr" data-id="${id}" ${tempEval.herramientas.includes(id) ? 'checked' : ''}>
+                        <span>${esc(txt)}</span>
+                    </label>`).join('')}</div>`).join('');
+        }
+
+        function renderLinks() {
+            linksList.innerHTML = tempLinks.length === 0 ? '<li class="text-xs text-slate-400 italic">No hay enlaces guardados.</li>' : '';
+            tempLinks.forEach((link, idx) => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center bg-white border border-slate-200 p-2 rounded text-sm';
+                li.innerHTML = `
+                    <a href="${esc(link.url)}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate max-w-[80%]">${esc(link.label)}</a>
+                    <button type="button" data-action="remove-link" data-idx="${idx}" class="text-red-500 hover:text-red-700 p-1"><i class="fa-solid fa-trash-can"></i></button>`;
+                linksList.appendChild(li);
+            });
+        }
+
+        function renderFiles() {
+            filesList.innerHTML = tempFiles.length === 0 ? '<li class="text-xs text-slate-400 italic">No hay archivos adjuntos.</li>' : '';
+            tempFiles.forEach((file, idx) => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center bg-white border border-slate-200 p-2 rounded text-sm';
+                li.innerHTML = `
+                    <button type="button" data-action="download-file" data-idx="${idx}" class="text-emerald-600 hover:underline truncate max-w-[80%] text-left"><i class="fa-solid fa-file-arrow-down mr-1"></i>${esc(file.name)}</button>
+                    <button type="button" data-action="remove-file" data-idx="${idx}" class="text-red-500 hover:text-red-700 p-1"><i class="fa-solid fa-trash-can"></i></button>`;
+                filesList.appendChild(li);
+            });
+        }
+
+        async function saveNotes() {
+            if (!currentEditingDate || saving) return;
+
+            const date = currentEditingDate;
+            const day = {
+                topic: $('topic-input').value.trim(),
+                notes: $('notes-input').value.trim(),
+                links: [...tempLinks],
+                files: [...tempFiles],
+                curriculo: { competencias: [...tempCurriculo.competencias], criterios: [...tempCurriculo.criterios] },
+                dua: { medidas: [...tempDua.medidas], otras: $('dua-notes').value.trim() },
+                evaluacion: { tipos: [...tempEval.tipos], herramientas: [...tempEval.herramientas], notas: $('eval-notes').value.trim() }
+            };
+
+            const removed = originalFileIds.filter(id => !tempFiles.some(f => f.id === id));
+            saving = true;
+            $('btn-save-label').textContent = 'Guardando...';
+
+            try {
+                await persistDay(date, day, removed);
+                toast('Planificación guardada con éxito.', 'ok');
+                renderCalendar(currentMonthIndex);
+                closeModal();
+            } catch (e) {
+                console.error(e);
+                toast('Error al guardar: ' + e.message, 'error', 8000);
+            } finally {
+                saving = false;
+                $('btn-save-label').textContent = 'Guardar Planificación';
+            }
+        }
+
+        /* =====================================================================
+           INICIALIZACIÓN DE LA APLICACIÓN
+           ===================================================================== */
+        function setupListeners() {
+            btnPrev.addEventListener('click', () => { if (currentMonthIndex > 0) { currentMonthIndex--; renderCalendar(currentMonthIndex); } });
+            btnNext.addEventListener('click', () => { if (currentMonthIndex < courseMonths.length - 1) { currentMonthIndex++; renderCalendar(currentMonthIndex); } });
+
+            filterBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    filterBtns.forEach(b => b.classList.remove('bg-slate-800', 'text-white'));
+                    e.currentTarget.classList.add('bg-slate-800', 'text-white');
+                    activeFilter = e.currentTarget.dataset.filter;
+                    applyFilterVisuals();
+                });
+            });
+
+            $('btn-close-modal').addEventListener('click', closeModal);
+            $('btn-save-notes').addEventListener('click', saveNotes);
+            $('btn-export').addEventListener('click', exportBackup);
+            $('btn-import').addEventListener('click', () => $('import-input').click());
+            $('import-input').addEventListener('change', (e) => importBackup(e.target.files[0]));
+
+            // Eventos para checkboxes dinámicos
+            document.addEventListener('change', (e) => {
+                const t = e.target;
+                if (t.dataset.cur === 'comp') {
+                    const compId = Number(t.dataset.id);
+                    if (t.checked) {
+                        if (!tempCurriculo.competencias.includes(compId)) tempCurriculo.competencias.push(compId);
+                    } else {
+                        tempCurriculo.competencias = tempCurriculo.competencias.filter(x => x !== compId);
+                        const critsOfComp = CRITERIOS.filter(c => c.c === compId).map(c => c.id);
+                        tempCurriculo.criterios = tempCurriculo.criterios.filter(x => !critsOfComp.includes(x));
+                    }
+                    renderCurriculum();
+                } else if (t.dataset.cur === 'crit') {
+                    const critId = t.dataset.id;
+                    if (t.checked) {
+                        if (!tempCurriculo.criterios.includes(critId)) tempCurriculo.criterios.push(critId);
+                    } else {
+                        tempCurriculo.criterios = tempCurriculo.criterios.filter(x => x !== critId);
+                    }
+                    renderSaberes();
+                } else if (t.dataset.pick === 'dua') {
+                    const id = t.dataset.id;
+                    if (t.checked) { if (!tempDua.medidas.includes(id)) tempDua.medidas.push(id); }
+                    else { tempDua.medidas = tempDua.medidas.filter(x => x !== id); }
+                } else if (t.dataset.pick === 'etipo') {
+                    const id = t.dataset.id;
+                    if (t.checked) { if (!tempEval.tipos.includes(id)) tempEval.tipos.push(id); }
+                    else { tempEval.tipos = tempEval.tipos.filter(x => x !== id); }
+                } else if (t.dataset.pick === 'eherr') {
+                    const id = t.dataset.id;
+                    if (t.checked) { if (!tempEval.herramientas.includes(id)) tempEval.herramientas.push(id); }
+                    else { tempEval.herramientas = tempEval.herramientas.filter(x => x !== id); }
+                }
+            });
+
+            $('btn-add-link').addEventListener('click', () => {
+                const url = linkInput.value.trim();
+                if (url) {
+                    tempLinks.push({ url: /^https?:\/\//i.test(url) ? url : 'https://' + url, label: url });
+                    linkInput.value = '';
+                    renderLinks();
+                }
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (file.size > MAX_FILE_BYTES) { fileError.classList.remove('hidden'); return; }
+                fileError.classList.add('hidden');
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    tempFiles.push({ id: newId(), name: file.name, type: file.type, size: file.size, data: evt.target.result });
+                    renderFiles();
+                    fileInput.value = '';
+                };
+                reader.readAsDataURL(file);
+            });
+
+            linksList.addEventListener('click', (e) => {
+                const b = e.target.closest('[data-action="remove-link"]');
+                if (b) { tempLinks.splice(Number(b.dataset.idx), 1); renderLinks(); }
+            });
+
+            filesList.addEventListener('click', async (e) => {
+                const rm = e.target.closest('[data-action="remove-file"]');
+                if (rm) { tempFiles.splice(Number(rm.dataset.idx), 1); renderFiles(); return; }
+
+                const dl = e.target.closest('[data-action="download-file"]');
+                if (dl) {
+                    const f = tempFiles[Number(dl.dataset.idx)];
+                    try {
+                        const data = await resolveFileData(f);
+                        const a = document.createElement('a');
+                        a.href = data;
+                        a.download = f.name;
+                        a.click();
+                    } catch (err) {
+                        toast(err.message, 'error');
+                    }
+                }
+            });
+        }
+
+        async function start() {
+            setupListeners();
+            await loadAll();
+            renderCalendar(currentMonthIndex);
+        }
+
+        start();
+    </script>
+</body>
+</html>
